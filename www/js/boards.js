@@ -49,6 +49,7 @@ const uno = {
   },
   pinRec: 20, pinMax: 40, totalIO: 200,
   i2c: { sda: 'A4', scl: 'A5' },
+  spi: { sck: 'D13', mosi: 'D11', miso: 'D12' },
   uart: [{ soft: true, name: 'SoftwareSerial' }],
   cols: {
     left: [
@@ -93,6 +94,7 @@ const nano = {
   },
   pinRec: 20, pinMax: 40, totalIO: 200,
   i2c: { sda: 'A4', scl: 'A5' },
+  spi: { sck: 'D13', mosi: 'D11', miso: 'D12' },
   uart: [{ soft: true, name: 'SoftwareSerial' }],
   cols: {
     left: [
@@ -173,6 +175,7 @@ const mega = {
   },
   pinRec: 20, pinMax: 40, totalIO: 200,
   i2c: { sda: 'D20/SDA', scl: 'D21/SCL' },
+  spi: { sck: 'D52', mosi: 'D51', miso: 'D50' },
   uart: [{ name: 'Serial1', tx: 'D18/TX1', rx: 'D19/RX1' }, { name: 'Serial2', tx: 'D16/TX2', rx: 'D17/RX2' }],
   cols: {
     left: [ctl('IOREF'), ctl('RESET'), pw('3.3V', '3V3', '50 mA max'), pw('5V', '5V'), gnd(), gnd(), pw('VIN', 'VIN', '7–12 V'), ...megaA],
@@ -209,6 +212,7 @@ const leonardo = {
   },
   pinRec: 20, pinMax: 40, totalIO: 200,
   i2c: { sda: 'D2/SDA', scl: 'D3/SCL' },
+  spi: null, spiNote: 'Leonardo has SPI only on the 6-pin ICSP header (pin 1 MISO, 3 SCK, 4 MOSI), not on D11–D13. Wire the module there; use any digital pin for chip select.',
   uart: [{ name: 'Serial1', tx: 'D1/TX', rx: 'D0/RX' }],
   cols: {
     left: [ctl('IOREF'), ctl('RESET'), pw('3.3V', '3V3', '50 mA max'), pw('5V', '5V'), gnd(), gnd(), pw('VIN', 'VIN', '7–12 V'),
@@ -259,7 +263,8 @@ const esp32_30 = {
     boardFeed: 'VIN',
   },
   i2c: { sda: 'D21', scl: 'D22' },
-  uart: [{ name: 'Serial2', tx: 'TX2', rx: 'RX2' }],
+  spi: { sck: 'D18', mosi: 'D23', miso: 'D19' },
+  uart: [{ name: 'Serial2', tx: 'TX2', rx: 'RX2' }, { soft: true, hw: true, name: 'Serial1 (remapped to free pins)' }],
   cols: {
     left: [
       ctl('EN', 'Reset (active LOW)'),
@@ -313,8 +318,9 @@ const esp32_38 = {
     draw: { avg: 100, peak: 240 },
     boardFeed: '5V',
   },
-  uart: [{ name: 'Serial2', tx: 'IO17', rx: 'IO16' }],
+  uart: [{ name: 'Serial2', tx: 'IO17', rx: 'IO16' }, { soft: true, hw: true, name: 'Serial1 (remapped to free pins)' }],
   i2c: { sda: 'IO21', scl: 'IO22' },
+  spi: { sck: 'IO18', mosi: 'IO23', miso: 'IO19' },
   cols: {
     left: [
       pw('3V3', '3V3'), ctl('EN', 'Reset (active LOW)'),
@@ -382,6 +388,7 @@ const nodemcu = {
     boardFeed: 'Vin',
   },
   i2c: { sda: 'D2', scl: 'D1' },
+  spi: { sck: 'D5', mosi: 'D7', miso: 'D6' },
   cols: {
     left: [
       { n: 'A0', g: 'A0', t: 'io', caps: ['adc'], note: 'The ONLY analog input. 0–3.3 V (board has a divider). 10-bit.' },
@@ -428,6 +435,7 @@ const d1mini = {
     boardFeed: '5V',
   },
   i2c: { sda: 'D2', scl: 'D1' },
+  spi: { sck: 'D5', mosi: 'D7', miso: 'D6' },
   cols: {
     left: [
       ctl('RST', 'Reset (active LOW)'),
@@ -462,11 +470,11 @@ function gp(n, extra = {}) {
 function picoCols() {
   const L = [gp(0, { caps: ['din', 'dout', 'pwm', 'tx'], note: 'UART0 TX (Serial1)' }), gp(1, { caps: ['din', 'dout', 'pwm', 'rx'], note: 'UART0 RX (Serial1)' }), gnd(),
     gp(2), gp(3), gp(4, { caps: ['din', 'dout', 'pwm', 'sda'], note: 'Default I2C0 SDA (Wire)' }), gp(5, { caps: ['din', 'dout', 'pwm', 'scl'], note: 'Default I2C0 SCL (Wire)' }), gnd(),
-    gp(6), gp(7), gp(8), gp(9), gnd(), gp(10), gp(11), gp(12), gp(13), gnd(), gp(14), gp(15)];
+    gp(6), gp(7), gp(8, { caps: ['din', 'dout', 'pwm', 'tx'], note: 'UART1 TX (Serial2)' }), gp(9, { caps: ['din', 'dout', 'pwm', 'rx'], note: 'UART1 RX (Serial2)' }), gnd(), gp(10), gp(11), gp(12), gp(13), gnd(), gp(14), gp(15)];
   const R = [pw('VBUS', '5V', 'USB 5 V — ONLY powered when USB is plugged in'), pw('VSYS', 'VIN', 'Main power input 1.8–5.5 V'), gnd(),
     ctl('3V3_EN', 'Pull LOW to switch off the 3.3 V regulator'), pw('3V3(OUT)', '3V3', '3.3 V out, keep under 300 mA'),
     ctl('ADC_VREF', 'ADC reference'), gp(28, { note: 'ADC2' }), { n: 'AGND', t: 'gnd' }, gp(27, { note: 'ADC1' }), gp(26, { note: 'ADC0' }),
-    ctl('RUN', 'Pull LOW to reset'), gp(22), gnd(), gp(21), gp(20), gp(19), gp(18), gnd(), gp(17), gp(16)];
+    ctl('RUN', 'Pull LOW to reset'), gp(22), gnd(), gp(21), gp(20), gp(19, { caps: ['din', 'dout', 'pwm', 'spi'], note: 'SPI0 MOSI (TX)' }), gp(18, { caps: ['din', 'dout', 'pwm', 'spi'], note: 'SPI0 SCK' }), gnd(), gp(17, { caps: ['din', 'dout', 'pwm', 'spi'], note: 'SPI0 CS' }), gp(16, { caps: ['din', 'dout', 'pwm', 'spi'], note: 'SPI0 MISO (RX)' })];
   return { left: L, right: R };
 }
 const PICO_COMMON = {
@@ -475,7 +483,8 @@ const PICO_COMMON = {
   layoutNote: 'Viewed from the top, USB at the top. Left column = pins 1–20, right column = pins 40 → 21.',
   pinRec: 4, pinMax: 12, totalIO: 50,
   i2c: { sda: 'GP4', scl: 'GP5' },
-  uart: [{ name: 'Serial1', tx: 'GP0', rx: 'GP1' }],
+  spi: { sck: 'GP18', mosi: 'GP19', miso: 'GP16' },
+  uart: [{ name: 'Serial1', tx: 'GP0', rx: 'GP1' }, { name: 'Serial2', tx: 'GP8', rx: 'GP9' }],
 };
 const pico = {
   ...PICO_COMMON, id: 'pico', name: 'Raspberry Pi Pico', short: 'Pico', wireless: null,
@@ -540,6 +549,7 @@ const PI_COMMON = {
   wireless: { wifi: true, bt: 'Classic + BLE' },
   pinRec: 8, pinMax: 16, totalIO: 50,
   i2c: { sda: 'GPIO2', scl: 'GPIO3' },
+  spi: { sck: 'GPIO11', mosi: 'GPIO10', miso: 'GPIO9' },
   uart: [{ name: 'serial0', tx: 'GPIO14', rx: 'GPIO15' }],
   layoutNote: '40-pin header, pin 1 (3V3) top-left next to the corner. Left = odd pins 1–39, right = even pins 2–40. No analog inputs.',
 };

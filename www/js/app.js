@@ -26,6 +26,20 @@ const ICONS = {
   ruler: '<rect x="3" y="9" width="18" height="6" rx="1"/><path d="M7 9v3M11 9v3M15 9v3M19 9v2"/>',
   alarm: '<path d="M6 17h12l-1.5-2V11a4.5 4.5 0 0 0-9 0v4z"/><path d="M10.5 19.5a1.5 1.5 0 0 0 3 0M3.5 8a8 8 0 0 1 3-4M20.5 8a8 8 0 0 0-3-4"/>',
   traffic: '<rect x="8" y="3" width="8" height="16" rx="2.5"/><circle cx="12" cy="7" r="1.4"/><circle cx="12" cy="11" r="1.4"/><circle cx="12" cy="15" r="1.4"/><path d="M12 19v2"/>',
+  robot: '<rect x="6" y="8" width="12" height="9" rx="2"/><circle cx="10" cy="12.5" r="1.2"/><circle cx="14" cy="12.5" r="1.2"/><path d="M12 8V5M10.5 4h3M4 12v3M20 12v3M8 17v2.5M16 17v2.5"/>',
+  arm: '<path d="M5 20h8M9 20v-3l5-6 3 2M14 11l-3-5"/><circle cx="9" cy="17" r="1.2"/><circle cx="14" cy="11" r="1.2"/><path d="M17 13l2-1.5M17 13l1.5 2"/>',
+  bin: '<path d="M6 8h12l-1 12H7zM5 8h14M9 8V6h6v2"/><path d="M10 11v6M14 11v6"/>',
+  home: '<path d="M4 11l8-6 8 6v9H4z"/><path d="M10 20v-5h4v5"/>',
+  lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3M12 14.5v2.5"/>',
+  key: '<rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 8h.01M12 8h.01M15 8h.01M9 11.5h.01M12 11.5h.01M15 11.5h.01M9 15h.01M12 15h.01M15 15h.01"/>',
+  air: '<path d="M4 9h11a3 3 0 1 0-3-3M4 13h14a3 3 0 1 1-3 3M4 17h6"/>',
+  gps: '<path d="M12 21s6-5.5 6-11a6 6 0 0 0-12 0c0 5.5 6 11 6 11z"/><circle cx="12" cy="10" r="2.2"/>',
+  fire: '<path d="M12 21c-3.5 0-6-2.3-6-5.5 0-3 2-4.5 3-7 1 1.5 2 2 2 2 0-2.5 1-5 3-6.5 0 3 4 5.5 4 10 0 4-2.5 7-6 7z"/>',
+  bulb: '<path d="M9 17h6M10 20h4M12 3a6 6 0 0 0-3.5 10.8c.4.4.5.9.5 1.4V17h6v-1.8c0-.5.2-1 .5-1.4A6 6 0 0 0 12 3z"/>',
+  radar: '<path d="M4 18a8 8 0 0 1 16 0M7.5 18a4.5 4.5 0 0 1 9 0"/><path d="M12 18L17 11"/><circle cx="15" cy="13.5" r="0.8"/><path d="M3 18h18"/>',
+  remote: '<rect x="8" y="3" width="8" height="18" rx="2.5"/><circle cx="12" cy="7" r="1.3"/><path d="M10.5 11h.01M13.5 11h.01M10.5 14h.01M13.5 14h.01M10.5 17h.01M13.5 17h.01"/>',
+  rain: '<path d="M7 13a4 4 0 0 1 .5-8A5 5 0 0 1 17 4.5a3.5 3.5 0 0 1 0 8.5z"/><path d="M8 16l-1 3M12 16l-1 3M16 16l-1 3"/>',
+  gate: '<path d="M4 20V9M4 11h16"/><path d="M7 11l2-2M10 11l2-2M13 11l2-2M16 11l2-2"/><circle cx="4" cy="8" r="1.4"/><path d="M2 20h5"/>',
   chip: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 3v3M12 3v3M15 3v3M9 18v3M12 18v3M15 18v3M3 9h3M3 12h3M3 15h3M18 9h3M18 12h3M18 15h3"/>',
   back: '<path d="M15 5l-7 7 7 7"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
@@ -60,26 +74,28 @@ function viewHome() {
   return `${topbar("Pablo's IDE", 'Blueprint → pins → wiring → power')}
   <main class="pad">
     <section class="hero">
-      <p class="kicker">Stage 1 · 12 boards · real pinouts</p>
+      <p class="kicker">12 boards · ${PROJECTS.length} projects · real pinouts</p>
       <h2>Pick a project, pick your board.</h2>
       <p>Pins, wiring and power are worked out from each board's real header and each module's real specs, then checked for conflicts and wrong voltages.</p>
     </section>
-    <h3 class="sec">Projects</h3>
-    <div class="cards">${PROJECTS.map((p) => `
+    <h3 class="sec">Projects · ${PROJECTS.length}</h3>
+    <div class="filters">${['All', 'Starter', 'Beginner', 'Intermediate', 'Advanced'].map((l) => `<button class="fchip${(S.level || 'All') === l ? ' on' : ''}" data-act="level" data-id="${l}">${l}${l === 'All' ? '' : ' · ' + PROJECTS.filter((p) => p.level === l).length}</button>`).join('')}</div>
+    <div class="cards">${PROJECTS.filter((p) => !S.level || S.level === 'All' || p.level === S.level).map((p) => `
       <button class="card" data-act="open" data-id="${p.id}">
         <div class="cic">${icon(p.icon)}</div>
-        <div class="cbody"><div class="ctitle">${esc(p.name)} <span class="lvl ${p.level.toLowerCase()}">${p.level}</span></div><div class="csub">${esc(p.summary)}</div></div>
+        <div class="cbody"><div class="ctitle">${esc(p.name)} <span class="lvl ${p.level.toLowerCase()}">${p.level}</span>${p.needs === 'wifi' ? '<span class="lvl wifi">Wi-Fi</span>' : ''}</div><div class="csub">${esc(p.summary)}</div></div>
       </button>`).join('')}
     </div>
     <h3 class="sec">Boards</h3>
     <button class="card wide" data-act="boards"><div class="cic">${icon('chip')}</div><div class="cbody"><div class="ctitle">Board pinouts</div><div class="csub">All 12 boards: every pin, what it can do, what to avoid.</div></div></button>
-    <p class="foot">Pablo's IDE · v1 Stage 1</p>
+    <p class="foot">Pablo's IDE · v1.1</p>
   </main>`;
 }
 
+function needsMiss(b) { const p = projectById(S.project); return p && p.needs === 'wifi' && !(b.wireless && b.wireless.wifi); }
 function boardPicker() {
   const fams = [...new Set(BOARDS.map((b) => b.family))];
-  return `<div class="bpick">${fams.map((f) => `<div class="bfam"><span>${FAMILY_NAMES[f]}</span>${BOARDS.filter((b) => b.family === f).map((b) => `<button class="chip${b.id === S.board ? ' on' : ''}" data-act="board" data-id="${b.id}" style="--bc:${BOARD_COLORS[b.family]}">${esc(b.short)}</button>`).join('')}</div>`).join('')}</div>`;
+  return `<div class="bpick">${fams.map((f) => `<div class="bfam"><span>${FAMILY_NAMES[f]}</span>${BOARDS.filter((b) => b.family === f).map((b) => `<button class="chip${b.id === S.board ? ' on' : ''}${needsMiss(b) ? ' miss' : ''}" data-act="board" data-id="${b.id}" style="--bc:${BOARD_COLORS[b.family]}">${esc(b.short)}</button>`).join('')}</div>`).join('')}</div>`;
 }
 
 const TABS = [['blueprint', 'Blueprint'], ['parts', 'Parts'], ['pins', 'Pins'], ['wiring', 'Wiring'], ['power', 'Power'], ['check', 'Check']];
@@ -228,7 +244,7 @@ function tabPower(C) {
       <table class="tbl"><tr><th>Load</th><th>Avg</th><th>Peak</th></tr>${g.loads.map((l) => `<tr><td>${esc(l.name)}${l.via ? `<small>via ${esc(l.via)}</small>` : ''}</td><td>${fmt(l.avg)}</td><td>${fmt(l.peak)}</td></tr>`).join('')}
       <tr class="tot"><td>Total</td><td>${fmt(g.avg)}</td><td>${fmt(g.peak)}</td></tr></table>
       <div class="meter"><i style="width:${pct}%" class="${g.peak > g.max ? 'over' : pct > 80 ? 'hi' : ''}"></i></div>
-      <p class="muted">Peak ${fmt(g.peak)} of ${fmt(g.max)} available${g.motorV ? ` · motors get ~${g.motorV.toFixed(1)} V after the L298N` : ''}${g.reg ? ` · L298N 5 V regulator ${fmt(g.reg.load)} / ${fmt(g.reg.max)}` : ''}</p>
+      <p class="muted">Peak ${fmt(g.peak)} of ${fmt(g.max)} available${g.motorV ? ` · motors get ~${g.motorV.toFixed(1)} V after the L298N` : ''}${g.reg ? ` · L298N 5 V regulator ${fmt(g.reg.load)} / ${fmt(g.reg.max)}` : ''}${g.buck ? ` · buck 5 V output peak ${fmt(g.buck.load)} / ${fmt(g.buck.max)}` : ''}</p>
       ${g.hours ? `<p class="big">≈ ${g.hours >= 1 ? g.hours.toFixed(1) + ' h' : Math.round(g.hours * 60) + ' min'} runtime</p><p class="muted">At average current, using 80 % of ${Math.round(g.src.mAh)} mAh.</p>` : ''}
     </div>`;
   }).join('');
@@ -299,6 +315,7 @@ function handle(act, el) {
     case 'boardview': history.pushState({}, ''); go('board', { boardView: el.dataset.id, pinSel: null }); break;
     case 'board': S.board = el.dataset.id; S.wireSel = null; keepScroll(); break;
     case 'tab': S.tab = el.dataset.id; save(); render(); break;
+    case 'level': S.level = el.dataset.id; save(); render(); break;
     case 'adv': { const id = el.dataset.id; st.adv = el.checked ? [...new Set([...st.adv, id])] : st.adv.filter((x) => x !== id); st.overrides = {}; keepScroll(); break; }
     case 'src': st.sources[el.dataset.part] = el.dataset.id; keepScroll(); break;
     case 'override': st.overrides[el.dataset.key] = el.value; keepScroll(); break;

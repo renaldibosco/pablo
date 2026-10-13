@@ -155,7 +155,8 @@ export function wiringSvg(res, opts = {}) {
     const def = p.def;
     const src = p.source ? SOURCES[p.sourceKey] : null;
     const cat = def ? def.cat : 'Power';
-    const title = p.label;
+    const title = fit(p.label, CW + 10);
+    const hubbed = cWires.some((w) => (w.part === p.id && partById[w.bPart] && partById[w.bPart].def && partById[w.bPart].def.servoHub));
     const sub = def ? (p.def.isLed ? `${p.color} LED · ${p.res || '?'} Ω` : def.short) : src.short + ' · ' + src.v + ' V';
     modSvg.push(`<g class="mod" data-part="${p.id}"><rect x="${g.x}" y="${g.y}" width="${CW}" height="${g.h}" rx="8" fill="#FFFFFF" stroke="#334155" stroke-width="1.2"/>`);
     modSvg.push(`<path d="M${g.x} ${g.y + 8}a8 8 0 0 1 8 -8h${CW - 16}a8 8 0 0 1 8 8v${HEAD - 8}h-${CW}z" fill="${CAT_COLORS[cat] || '#334155'}"/>`);
@@ -169,11 +170,12 @@ export function wiringSvg(res, opts = {}) {
         const py = g.y + HEAD + 4 + i * P + P / 2;
         const px = edge === 'inner' ? innerX : outerX;
         pinY[p.id + '.' + x.id + '.' + edge] = { x: px, y: py };
-        const connected = pinEdges[p.id + '.' + x.id];
+        const viaHeader = hubbed && !pinEdges[p.id + '.' + x.id] && (x.id === '+V' || x.id === 'GND');
+        const connected = pinEdges[p.id + '.' + x.id] || viaHeader;
         const lx = px === g.x ? g.x + 10 : g.x + CW - 10;
         const anchor = px === g.x ? 'start' : 'end';
         modSvg.push(`<circle cx="${px}" cy="${py}" r="4.5" fill="${connected ? '#0F172A' : '#CBD5E1'}"/>`);
-        modSvg.push(`<text x="${lx}" y="${py + 4}" text-anchor="${anchor}" class="mpl${connected ? '' : ' dim'}">${esc(x.label || x.id)}</text>`);
+        modSvg.push(`<text x="${lx}" y="${py + 4}" text-anchor="${anchor}" class="mpl${connected ? '' : ' dim'}">${esc(viaHeader ? x.id + ' (in header)' : (x.label || x.id))}</text>`);
       }
     }
     modSvg.push('</g>');

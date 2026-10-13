@@ -181,3 +181,11 @@ p.big { font: 700 20px var(--mono); color: var(--amber); margin: 8px 0 0; }
 .pindet .w { color: var(--warn); } .pindet .e { color: var(--err); }
 .cap { display: inline-block; font: 600 11px var(--mono); padding: 2px 7px; border-radius: 6px; background: #0C2340; border: 1px solid #1E3A5F; color: #BAE6FD; margin: 0 4px 4px 0; }
 .cap.soft { color: var(--muted); }
+
+.filters { display: flex; gap: 6px; overflow-x: auto; margin: 0 0 10px; scrollbar-width: none; }
+.filters::-webkit-scrollbar { display: none; }
+.fchip { flex: none; padding: 6px 11px; border-radius: 16px; font-size: 13px; background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
+.fchip.on { background: var(--accent); color: #04121F; border-color: var(--accent); font-weight: 700; }
+.lvl.advanced { background: #3B1A24; color: #FDA4AF; }
+.lvl.wifi { background: #13304A; color: #7DD3FC; }
+.chip.miss { opacity: 0.4; text-decoration: line-through; }

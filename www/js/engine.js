@@ -50,6 +50,7 @@ function pinOk(p, req) {
     case 'scl': return c.includes('scl');
     case 'rx': return c.includes('din') && !p.noInt;
     case 'tx': return c.includes('dout') && !p.inputOnly;
+    case 'spi-sck': case 'spi-mosi': case 'spi-miso': return c.includes('spi');
     default: return false;
   }
 }
@@ -143,24 +144,33 @@ export function allocate(project, board, opts = {}) {
     const pin = overrides[key] ? b.pins.find((x) => x.id === overrides[key]) : b.byName(name);
     addBoardWire(l, pin, { kind: 'sig' });
   }
+  // 1b) SPI (shared bus — fixed pins; chip-select uses any digital pin)
+  for (const l of links.filter((l) => l[1].startsWith('spi-'))) {
+    const key = keyOf(l);
+    const sig = l[1].slice(4);
+    if (!b.spi) { addBoardWire(l, null, { kind: 'sig', fail: b.spiNote || `${b.short} has no SPI on its header` }); continue; }
+    const pin = overrides[key] ? b.pins.find((x) => x.id === overrides[key]) : b.byName(b.spi[sig]);
+    addBoardWire(l, pin, { kind: 'sig' });
+  }
   // 2) UART groups
   const groups = {};
   for (const l of links.filter((l) => l[1].startsWith('uart-'))) { const g = l[1].split(':')[1]; (groups[g] = groups[g] || []).push(l); }
-  for (const g of Object.values(groups)) {
-    const u = (b.uart || [])[0];
+  Object.values(groups).forEach((g, gi) => {
+    const list = b.uart || [];
+    const u = list[gi] || (list[0] && list[0].soft ? list[0] : null);
     const rxL = g.find((l) => l[1].startsWith('uart-rx'));
     const txL = g.find((l) => l[1].startsWith('uart-tx'));
-    if (!u) { for (const l of g) addBoardWire(l, null, { kind: 'sig', fail: 'No serial port available' }); continue; }
+    if (!u) { for (const l of g) addBoardWire(l, null, { kind: 'sig', fail: `No free serial port left on ${b.short}` }); return; }
     if (u.soft) {
-      if (rxL) addBoardWire(rxL, pick('rx', keyOf(rxL), partOf(rxL[0])), { kind: 'sig', uart: u.name, soft: true });
-      if (txL) addBoardWire(txL, pick('tx', keyOf(txL), partOf(txL[0])), { kind: 'sig', uart: u.name, soft: true });
+      if (rxL) addBoardWire(rxL, pick('rx', keyOf(rxL), partOf(rxL[0])), { kind: 'sig', uart: u.name, soft: !u.hw });
+      if (txL) addBoardWire(txL, pick('tx', keyOf(txL), partOf(txL[0])), { kind: 'sig', uart: u.name, soft: !u.hw });
     } else {
       if (rxL) addBoardWire(rxL, overrides[keyOf(rxL)] ? b.pins.find((x) => x.id === overrides[keyOf(rxL)]) : b.byName(u.rx), { kind: 'sig', uart: u.name });
       if (txL) addBoardWire(txL, overrides[keyOf(txL)] ? b.pins.find((x) => x.id === overrides[keyOf(txL)]) : b.byName(u.tx), { kind: 'sig', uart: u.name });
     }
-  }
+  });
   // 3) other signals, most constrained first
-  const sigLinks = links.filter((l) => !l[1].includes('.') && SIG_ORDER.includes(reqBase(l[1])) && !['sda', 'scl'].includes(l[1]) && !l[1].startsWith('uart'));
+  const sigLinks = links.filter((l) => !l[1].includes('.') && SIG_ORDER.includes(reqBase(l[1])) && !['sda', 'scl'].includes(l[1]) && !l[1].startsWith('uart') && !l[1].startsWith('spi-'));
   sigLinks.sort((x, y) => SIG_ORDER.indexOf(reqBase(x[1])) - SIG_ORDER.indexOf(reqBase(y[1])));
   // keep project order within the same requirement (so IN1..IN4 land in order)
   for (const l of sigLinks) {
@@ -170,7 +180,7 @@ export function allocate(project, board, opts = {}) {
   // 4) power, ground, feed
   const gndPins = b.pins.filter((p) => p.t === 'gnd' && p.n === 'GND');
   let gi = 0;
-  for (const l of links.filter((l) => ['GND', 'VCC', 'FEED'].includes(l[1]))) {
+  for (const l of links.filter((l) => ['GND', 'VCC', 'VCC5', 'FEED'].includes(l[1]))) {
     const part = byId[partOf(l[0])];
     if (l[1] === 'GND') {
       // nearest GND to the module's signal pins, spreading load over GND pins
@@ -182,6 +192,9 @@ export function allocate(project, board, opts = {}) {
         g = (cands.length ? cands : gndPins).slice().sort((x, y) => (used.get(x.id)?.length || 0) - (used.get(y.id)?.length || 0) || Math.abs(x.row - near[0].row) - Math.abs(y.row - near[0].row))[0];
       } else g = gndPins.slice().sort((x, y) => (used.get(x.id)?.length || 0) - (used.get(y.id)?.length || 0))[gi++ % 1];
       addBoardWire(l, g, { kind: 'gnd' });
+    } else if (l[1] === 'VCC5') {
+      const fp = fiveVPin(b);
+      addBoardWire(l, fp, { kind: '5v', rail: '5V', railV: 5 });
     } else if (l[1] === 'VCC') {
       const r = chooseRail(b, part.def);
       // use the matching power pin closest to this module's signal wires
@@ -203,8 +216,11 @@ export function allocate(project, board, opts = {}) {
     const [a, c, o] = l;
     const aId = pinDef(a).id, cId = pinDef(c).id;
     let kind = 'aux';
-    if (/^\+$|12V/.test(aId) || /^\+$|12V/.test(cId) || /^5V$/.test(aId)) kind = 'auxpos';
-    if (/^-$|GND|DC-/.test(aId) || /^-$|GND/.test(cId)) kind = 'auxneg';
+    const PWR = /^(\+|-|12V|5V|V\+|\+V|IN\+|IN-|OUT\+|OUT-|T-GND|GND)$/;
+    const posId = (id) => PWR.test(id) && !/-|GND/.test(id);
+    const negId = (id) => PWR.test(id) && /-|GND/.test(id);
+    if (posId(aId) || posId(cId)) kind = 'auxpos';
+    if (negId(aId) || negId(cId)) kind = 'auxneg';
     wires.push({ key: keyOf(l), a, part: partOf(a), pinDef: pinDef(a), b: c, bPart: partOf(c), bPinDef: pinDef(c), kind, note: o && o.note });
   }
 
@@ -266,6 +282,10 @@ export function check(res) {
   const add = (level, title, detail, fix, keys = []) => issues.push({ level, title, detail, fix, keys });
   const canon = (p) => (p.alias ? b.byName(p.alias) : p);
 
+  // project needs
+  const proj = res.project;
+  if (proj.needs === 'wifi' && !(b.wireless && b.wireless.wifi)) add('error', `${b.short} has no Wi-Fi`, `${proj.name} is controlled over Wi-Fi.`, 'Pick ESP32, ESP8266 (NodeMCU / D1 mini), Pico W, Pi 4 or Pi 5.', []);
+
   // failed allocations
   for (const w of wires) if (w.fail) add('error', `${label(res, w.part)}: ${w.pinDef.id} not connected`, w.fail, 'Try a board with more pins, or turn off an advanced part.', [w.key]);
 
@@ -276,10 +296,10 @@ export function check(res) {
     const p = b.pins.find((x) => x.id === pid);
     if (p.t !== 'io') continue;
     const kinds = new Set(ws.map((w) => w.req));
-    const i2cShared = ws.every((w) => w.req === 'sda') || ws.every((w) => w.req === 'scl');
+    const i2cShared = ['sda', 'scl', 'spi-sck', 'spi-mosi', 'spi-miso'].some((r) => ws.every((w) => w.req === r));
     if (ws.length > 1 && !i2cShared) add('error', `Pin conflict on ${p.n}`, `${ws.map((w) => label(res, w.part) + ' ' + w.pinDef.id).join(' and ')} are both wired to ${p.n}.`, 'Move one of them to a free pin (tap the wire in the Pins tab).', ws.map((w) => w.key));
     if (ws.length > 1 && i2cShared) {
-      const addrs = ws.map((w) => byId[w.part].def.i2cAddr).filter(Boolean);
+      const addrs = ws.filter((w) => ['sda', 'scl'].includes(w.req)).map((w) => byId[w.part].def.i2cAddr).filter(Boolean);
       const dup = addrs.find((a, i) => addrs.indexOf(a) !== i);
       if (dup) add('error', `I2C address clash (${dup})`, 'Two devices on the same I2C bus use the same address.', 'Change the address jumper on one module.', ws.map((w) => w.key));
     }
@@ -323,7 +343,8 @@ export function check(res) {
         if (w.divider) add('info', `Voltage divider on ${pd.id}`, `${def.short} ${pd.id} only accepts ${lv.inMax} V; ${b.short} outputs ${b.logicV} V. A divider brings it to ~${fmtV(w.divider.vout)}.`, `${p.n} → 1 kΩ → ${pd.id}, and ${pd.id} → 2 kΩ → GND.`, [w.key]);
         else add('error', `${b.logicV} V signal into a ${lv.inMax} V pin`, `${where}: ${def.short} ${pd.id} only accepts ${lv.inMax} V.`, `Add a voltage divider: ${p.n} → 1 kΩ → ${pd.id}, and ${pd.id} → 2 kΩ → GND.`, [w.key]);
       }
-      if (pd.vih === 'relay' && b.logicV < 4.5) add('warn', '3.3 V may not switch a 5 V relay module', `${where}: these modules are active-LOW. A 3.3 V HIGH may not switch the opto fully OFF, so the relay can stay ON.`, 'Use a relay module with a 3.3 V / high-level trigger jumper, or drive IN with an NPN transistor (2N2222 + 1 kΩ).', [w.key]);
+      if (pd.vih === 'relay4' && b.logicV < 4.5) add('warn', '3.3 V and an optocoupled relay board', `${where}: the inputs are active-LOW and powered from VCC. With VCC at 5 V, a 3.3 V HIGH may not switch the relay OFF.`, 'Standard fix: remove the JD-VCC jumper, connect VCC to the board\'s 3.3 V and JD-VCC to 5 V (GND shared). The opto LEDs then run at 3.3 V and the coils at 5 V.', [w.key]);
+      else if (pd.vih === 'relay' && b.logicV < 4.5) add('warn', '3.3 V may not switch a 5 V relay module', `${where}: these modules are active-LOW. A 3.3 V HIGH may not switch the opto fully OFF, so the relay can stay ON.`, 'Use a relay module with a 3.3 V / high-level trigger jumper, or drive IN with an NPN transistor (2N2222 + 1 kΩ).', [w.key]);
       else if (typeof pd.vih === 'number') {
         const vih = pd.vihRel ? pd.vih * vcc : pd.vih;
         if (b.logicV < vih) add('warn', 'Signal too low', `${where}: needs ≥ ${fmtV(vih)} for HIGH, board gives ${b.logicV} V.`, 'Use a level shifter.', [w.key]);
@@ -388,6 +409,7 @@ export function power(res) {
     if (!part.def || part.def.motor) continue;
     if (part.def.isLed) { rails[b.logicV > 4 ? '5V' : '3V3'].push({ name: `${part.label} (${part.color} LED, ${part.res || '—'} Ω)`, avg: part.mA, peak: part.mA }); continue; }
     if (part.def.vcc && part.rail) rails[part.rail].push({ name: part.label + ' · ' + part.def.short, avg: part.def.mA.avg, peak: part.def.mA.peak });
+    if (part.def.coil) rails[part.def.coil.rail].push({ name: part.label + ' · relay coils (all ON)', avg: part.def.coil.avg, peak: part.def.coil.peak });
   }
   const sum = (arr, k) => arr.reduce((s, x) => s + x[k], 0);
   const railRows = Object.entries(rails).map(([rail, loads]) => ({ rail, loads, avg: sum(loads, 'avg'), peak: sum(loads, 'peak'), max: b.power.railMax[rail], note: b.power.railNote[rail] }));
@@ -445,6 +467,53 @@ export function power(res) {
       for (const m of motorsOf(pumpIds)) {
         loads.push({ name: m.label, avg: m.def.motor.run, peak: m.def.motor.stall, motor: true });
         if (src.v > m.def.motor.vmax + 0.5) add('warn', 'Pump over-volted', `${src.short} gives ${src.v} V; pump is rated ${m.def.motor.vmax} V.`, null);
+      }
+    }
+    // servos, solenoids and buck converters reached through module-to-module wires
+    {
+      const seen = new Set([sp.id]);
+      const q = [{ id: sp.id, buck: null }];
+      const buckOut = {};
+      while (q.length) {
+        const { id, buck } = q.shift();
+        for (const w of wires) {
+          if (!w.bPart) continue;
+          const o = w.part === id ? w.bPart : w.bPart === id ? w.part : null;
+          if (!o || seen.has(o)) continue;
+          const op = byId[o];
+          if (!op || op.source || !op.def || op.c === 'l298n') continue;
+          seen.add(o);
+          const d = op.def;
+          const scale = buck ? buck.def.buck.vout / (src.v * buck.def.buck.eff) : 1;
+          const via = buck ? `${buck.label} (5 V)` : null;
+          const vHere = buck ? buck.def.buck.vout : src.v;
+          const push = (name, avg, peak, extra = {}) => { loads.push({ name, avg: avg * scale, peak: peak * scale, via, ...extra }); if (buck) { buckOut[buck.id] = buckOut[buck.id] || { part: buck, peak: 0 }; buckOut[buck.id].peak += peak; } };
+          if (d.servo) {
+            push(op.label, d.servo.run, d.servo.stall, { motor: true });
+            if (vHere > d.servo.vmax + 0.3) add('error', `${op.label} over-volted`, `It gets ~${fmtV(vHere)}; ${d.short} is rated ${d.servo.vmin}–${d.servo.vmax} V and will burn out.`, 'Feed the servos through an LM2596 buck converter set to 5 V, or use a 4× AA pack.');
+            else if (!buck && src.vFull > d.servo.vmax + 0.2) add('info', 'Fresh cells run a little high', `${src.short} reads ~${src.vFull} V when new, slightly above the servo's ${d.servo.vmax} V rating. Fine in practice; it settles to ${src.v} V quickly.`, null);
+            if (vHere < d.servo.vmin - 0.3) add('warn', `${op.label} under-powered`, `Only ~${fmtV(vHere)}; servos jitter and lose torque below ${d.servo.vmin} V.`, null);
+          }
+          if (d.load) {
+            push(op.label, d.load.mA * 0.2, d.load.mA, { motor: true });
+            if (Math.abs(vHere - d.load.v) > d.load.tol) add('error', `${op.label} needs ${d.load.v} V`, `It is wired to ${src.short} (${src.v} V).`, `Use a ${d.load.v} V supply.`);
+          }
+          if (d.buck && !buck) {
+            if (src.v < d.buck.vout + d.buck.dropout) add('error', 'Battery too low for the buck converter', `The LM2596 needs ≥ ${d.buck.vout + d.buck.dropout} V in to give ${d.buck.vout} V; ${src.short} is ${src.v} V.`, 'Use 2× 18650 (7.4 V).');
+            else if (src.vEmpty < d.buck.vout + d.buck.dropout) add('info', 'Buck output drops when the cells are nearly flat', `Below ~${d.buck.vout + d.buck.dropout} V in, the 5 V output starts to sag.`, null);
+          }
+          const nb = d.buck ? op : buck;
+          if (wires.some((x) => x.kind === 'feed' && x.part === o)) {
+            const sc = nb ? nb.def.buck.vout / (src.v * nb.def.buck.eff) : 1;
+            for (const l of logicLoads) loads.push({ ...l, avg: l.avg * sc, peak: l.peak * sc, via: nb ? `${nb.label} (5 V)` : op.label });
+            if (nb) { buckOut[nb.id] = buckOut[nb.id] || { part: nb, peak: 0 }; buckOut[nb.id].peak += sum(logicLoads, 'peak'); }
+          }
+          q.push({ id: o, buck: nb });
+        }
+      }
+      for (const bo of Object.values(buckOut)) {
+        g.buck = { load: bo.peak, max: bo.part.def.buck.maxmA };
+        if (bo.peak > bo.part.def.buck.maxmA) add('warn', 'Buck converter near its limit', `Loads on the 5 V output can peak at ${Math.round(bo.peak)} mA; the LM2596 is good for ~${bo.part.def.buck.maxmA} mA continuous.`, 'Normal servo use stays well below stall; avoid stalling several servos at once.');
       }
     }
     // battery straight into Arduino VIN
