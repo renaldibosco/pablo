@@ -189,3 +189,15 @@ p.big { font: 700 20px var(--mono); color: var(--amber); margin: 8px 0 0; }
 .lvl.advanced { background: #3B1A24; color: #FDA4AF; }
 .lvl.wifi { background: #13304A; color: #7DD3FC; }
 .chip.miss { opacity: 0.4; text-decoration: line-through; }
+
+.logo { width: 34px; height: 34px; border-radius: 9px; background: #0B1220; border: 1px solid var(--line); display: grid; place-items: center; overflow: hidden; }
+.logo .ledlogo { width: 26px; height: 34px; }
+.hero { position: relative; padding-right: 108px; }
+.hero-bot { position: absolute; right: 10px; top: 14px; width: 92px; height: auto; }
+.bot-ant { animation: blink 2.4s ease-in-out infinite; }
+@keyframes blink { 0%, 70%, 100% { opacity: 1; } 80% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .bot-ant { animation: none; } }
+.botbox { display: flex; gap: 12px; align-items: center; }
+.botbox .bot { flex: none; width: 64px; height: auto; }
+.warnbot { border-color: #7F1D1D; background: #24121A; }
+@media (max-width: 360px) { .hero { padding-right: 16px; } .hero-bot { display: none; } }

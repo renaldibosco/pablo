@@ -44,6 +44,15 @@ const ICONS = {
   back: '<path d="M15 5l-7 7 7 7"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
 };
+const LED_LOGO = `<svg viewBox="150 90 250 400" class="ledlogo" aria-hidden="true"><defs><radialGradient id="lg"><stop offset="0" stop-color="#F5B841" stop-opacity=".55"/><stop offset="1" stop-color="#F5B841" stop-opacity="0"/></radialGradient></defs><circle cx="262" cy="210" r="120" fill="url(#lg)"/><path d="M190 330V120a14 14 0 0 1 14-14H292a84 84 0 0 1 0 168H252V330z" fill="#F5B841"/><path d="M226 236V142H288a47 47 0 0 1 0 94z" fill="#FDE68A"/><rect x="172" y="326" width="112" height="24" rx="6" fill="#F5B841"/><path d="M204 350V470M252 350V430" stroke="#CBD5E1" stroke-width="14" stroke-linecap="round"/></svg>`;
+// Pablo the bot — mascot. mood: 'happy' | 'wink' | 'worried'
+const BOT = (mood = 'wink', cls = '') => `<svg viewBox="100 50 312 350" class="bot ${cls}" aria-hidden="true"><g stroke-linecap="round" stroke-linejoin="round">
+  <path d="M256 92V130" stroke="#38BDF8" stroke-width="12"/><circle cx="256" cy="80" r="16" fill="${mood === 'worried' ? '#F87171' : '#F5B841'}" class="bot-ant"/>
+  <rect x="146" y="130" width="220" height="190" rx="46" fill="#111B2E" stroke="#38BDF8" stroke-width="12"/>
+  <circle cx="214" cy="215" r="44" fill="#F5B841" opacity=".18" class="bot-glow"/><circle cx="214" cy="215" r="26" fill="#F5B841"/>
+  ${mood === 'wink' ? '<rect x="276" y="208" width="46" height="14" rx="7" fill="#38BDF8"/>' : '<rect x="276" y="196" width="46" height="38" rx="10" fill="#38BDF8"/>'}
+  <path d="${mood === 'worried' ? 'M212 286q46 -22 92 0' : 'M210 272q46 26 92 0'}" fill="none" stroke="#38BDF8" stroke-width="10"/>
+  <path d="M196 320v52M236 320v52M276 320v52M316 320v52" stroke="#38BDF8" stroke-width="12"/><path d="M150 380h212" stroke="#2A3A57" stroke-width="10"/></g></svg>`;
 const icon = (n, cls = '') => `<svg viewBox="0 0 24 24" class="ic ${cls}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[n] || ''}</svg>`;
 
 const FAMILY_NAMES = { arduino: 'Arduino', esp32: 'ESP32', esp8266: 'ESP8266', rp2040: 'Pico', rpi: 'Raspberry Pi' };
@@ -66,7 +75,7 @@ function render() {
 }
 
 function topbar(title, sub, back) {
-  return `<header class="top">${back ? `<button class="iconbtn" data-act="back" aria-label="Back">${icon('back')}</button>` : '<div class="logo"><span>P</span></div>'}
+  return `<header class="top">${back ? `<button class="iconbtn" data-act="back" aria-label="Back">${icon('back')}</button>` : `<div class="logo">${LED_LOGO}</div>`}
   <div class="tt"><h1>${esc(title)}</h1>${sub ? `<p>${esc(sub)}</p>` : ''}</div></header>`;
 }
 
@@ -74,6 +83,7 @@ function viewHome() {
   return `${topbar("Pablo's IDE", 'Blueprint → pins → wiring → power')}
   <main class="pad">
     <section class="hero">
+      ${BOT('wink', 'hero-bot')}
       <p class="kicker">12 boards · ${PROJECTS.length} projects · real pinouts</p>
       <h2>Pick a project, pick your board.</h2>
       <p>Pins, wiring and power are worked out from each board's real header and each module's real specs, then checked for conflicts and wrong voltages.</p>
@@ -260,7 +270,8 @@ function issuesHtml(list) {
 function tabCheck(C) {
   const e = C.all.filter((i) => i.level === 'error'), w = C.all.filter((i) => i.level === 'warn'), n = C.all.filter((i) => i.level === 'info');
   return `<div class="summary"><div class="${e.length ? 'err' : 'ok'}"><b>${e.length}</b>problems</div><div class="${w.length ? 'warn' : 'ok'}"><b>${w.length}</b>warnings</div><div><b>${n.length}</b>notes</div></div>
-  ${!e.length && !w.length ? `<div class="panel okbox"><h4>All clear on ${esc(C.b.short)}</h4><p>No pin conflicts, no wrong voltages, no overloaded rails.</p></div>` : ''}
+  ${!e.length && !w.length ? `<div class="panel okbox botbox">${BOT('happy')}<div><h4>All clear on ${esc(C.b.short)}</h4><p>No pin conflicts, no wrong voltages, no overloaded rails. Pablo approves.</p></div></div>` : ''}
+  ${e.length ? `<div class="panel botbox warnbot">${BOT('worried')}<div><h4>Pablo found ${e.length} problem${e.length > 1 ? 's' : ''}</h4><p>Fix these before powering up — each one tells you how.</p></div></div>` : ''}
   ${issuesHtml(C.all)}
   <p class="muted small">Checks: pin conflicts, pin abilities, input-only / flash / reserved / boot pins, USB-serial pins, 5 V into 3.3 V, 3.3 V into 5 V-only inputs, pull-ups, Pico PWM slices, I2C addresses, LED current, total pin current, rail budgets, battery & regulator limits.</p>`;
 }
