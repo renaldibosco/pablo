@@ -1,0 +1,7 @@
+{
+  "appId": "com.renaldibosco.pablo",
+  "appName": "Pablo's IDE",
+  "webDir": "www",
+  "backgroundColor": "#0B1220",
+  "android": { "backgroundColor": "#0B1220", "allowMixedContent": false }
+}

@@ -1,0 +1,11 @@
+import { boardById } from '../www/js/boards.js';
+import { projectById } from '../www/js/projects.js';
+import { allocate, check, power } from '../www/js/engine.js';
+const [pid,bid,adv]=process.argv.slice(2);
+const p=projectById(pid), b=boardById(bid);
+const r=allocate(p,b,{adv:new Set(adv?p.parts.filter(x=>x.adv).map(x=>x.id):[])});
+for(const w of r.wires) console.log(w.a.padEnd(12), '->', w.board? w.board.n : w.b, w.kind, w.divider?'DIV':'', w.shifter?'SHIFT':'', w.note||'');
+for(const i of [...check(r),...power(r).issues]) console.log(i.level, '|', i.title, '|', i.detail, '|', i.fix||'');
+const pw=power(r); for(const g of pw.groups) console.log('SRC',g.label,g.src.short,'avg',g.avg,'peak',g.peak,'max',g.max,'h',g.hours&&g.hours.toFixed(1), g.loads.map(l=>l.name+':'+l.avg).join(', '));
+for(const rr of pw.rails) console.log('RAIL',rr.rail,rr.avg,rr.peak,rr.max);
+for(const x of r.parts) if(x.res) console.log('LED',x.label,x.res,x.mA);
